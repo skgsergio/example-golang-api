@@ -25,7 +25,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ghcr.io/skgsergio/example-golang-api:latest
+          images: ghcr.io/skgsergio/example-golang-api
           tags: |
             type=ref,event=branch
             type=ref,event=pr
