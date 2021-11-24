@@ -26,8 +26,9 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: ghcr.io/skgsergio/example-golang-api
+          # https://github.com/docker/metadata-action#latest-tag
           flavor: |
-            latest=true
+            latest=auto
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -51,3 +52,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
