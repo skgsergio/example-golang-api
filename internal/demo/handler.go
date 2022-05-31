@@ -16,7 +16,7 @@ func RegisterHandlers() {
 func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	_, err := fmt.Fprint(w, `{"patatas":1337,"type":"frita"}`)
+	_, err := fmt.Fprint(w, `{"patatas":1337,"type":"fritas"}`)
 	if err != nil {
 		log.Error().Err(err).Msg("Response write error.")
 	}

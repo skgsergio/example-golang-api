@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -25,14 +26,14 @@ var (
 		[]string{"endpoint", "code"},
 	)
 
-	// httpResponseTime stores the response time of each endpoint
-	httpResponseTime = promauto.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Namespace:  "http",
-			Subsystem:  "response",
-			Name:       "time",
-			Help:       "HTTP endpoint response time in milliseconds",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	// httpRequestDuration stores the response time of each endpoint
+	httpRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "http",
+			Subsystem: "request",
+			Name:      "duration",
+			Help:      "HTTP endpoint response time in seconds",
+			Buckets:   []float64{0.050, 0.100, 0.250, 0.500, 1.000, 1.500, 2.000, 3.000, 5.000},
 		},
 		[]string{"endpoint"},
 	)
@@ -61,7 +62,12 @@ func (mrw *metricsResponseWriter) Write(b []byte) (int, error) {
 
 // LoggerAndMetrics is a custom net/http middleware for detailed request logging
 // and storing metrics.
-func LoggerAndMetrics(next http.Handler) http.Handler {
+func LoggerAndMetrics(next http.Handler, trustedProxyCIDR string, insecureTrustProxy bool) http.Handler {
+	_, proxyNet, err := net.ParseCIDR(trustedProxyCIDR)
+	if trustedProxyCIDR != "" && err != nil {
+		log.Fatal().Err(err).Msg("Error parsing trusted proxy CIDR")
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Encapsulate the original response writer with our own that stores metrics
 		mrw := &metricsResponseWriter{ResponseWriter: w}
@@ -75,7 +81,7 @@ func LoggerAndMetrics(next http.Handler) http.Handler {
 			mrw.statusCode = 200
 		}
 
-		// Log request with the appropiate log level
+		// Select the appropiate log level
 		level := zerolog.InfoLevel
 		if mrw.statusCode >= 500 {
 			level = zerolog.ErrorLevel
@@ -83,8 +89,18 @@ func LoggerAndMetrics(next http.Handler) http.Handler {
 			level = zerolog.WarnLevel
 		}
 
+		// Extract client IP from X-Forwarded-For
+		ipAddress := strings.Split(r.RemoteAddr, ":")[0]
+		fwdAddress := r.Header.Get("X-Forwarded-For")
+
+		if fwdAddress != "" && (insecureTrustProxy || (proxyNet != nil && proxyNet.Contains(net.ParseIP(ipAddress)))) {
+			ips := strings.Split(fwdAddress, ",")
+			ipAddress = strings.TrimSpace(ips[0])
+		}
+
+		// Log request
 		log.WithLevel(level).
-			Str("remote_addr", strings.Split(r.RemoteAddr, ":")[0]).
+			Str("remote_addr", ipAddress).
 			Str("method", r.Method).
 			Str("url", r.URL.Path).
 			Int("status_code", mrw.statusCode).
@@ -95,7 +111,7 @@ func LoggerAndMetrics(next http.Handler) http.Handler {
 		// Store request metrics, ignore 404 errors
 		if mrw.statusCode != 404 {
 			httpResponseCount.WithLabelValues(r.URL.Path, fmt.Sprintf("%d", mrw.statusCode)).Inc()
-			httpResponseTime.WithLabelValues(r.URL.Path).Observe(float64(duration.Milliseconds()))
+			httpRequestDuration.WithLabelValues(r.URL.Path).Observe(duration.Seconds())
 		}
 	})
 }

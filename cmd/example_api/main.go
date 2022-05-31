@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/skgsergio/example-golang-api/internal/codes"
 	"github.com/skgsergio/example-golang-api/internal/demo"
 
 	"github.com/skgsergio/example-golang-api/lib/middleware"
@@ -18,9 +19,11 @@ import (
 )
 
 var (
-	listen = flag.String("listen", ":8000", "API listen address")
-	debug  = flag.Bool("debug", false, "enable debug log level")
-	pretty = flag.Bool("pretty", false, "enable pretty logging (human-friendly)")
+	listen             = flag.String("listen", ":8000", "API listen address")
+	trustedProxyCIDR   = flag.String("trusted-proxy-cidr", "", "proxy CIDR for trusting X-Forwarded-For header")
+	insecureTrustProxy = flag.Bool("insecure-trust-proxy", false, "always trust X-Forwarded-For")
+	debug              = flag.Bool("debug", false, "enable debug log level")
+	pretty             = flag.Bool("pretty", false, "enable pretty logging (human-friendly)")
 )
 
 func main() {
@@ -56,9 +59,10 @@ func main() {
 
 	// Register app handlers
 	demo.RegisterHandlers()
+	codes.RegisterHandlers()
 
 	// Run server with custom LoggerAndMetrics middleware
-	err := http.ListenAndServe(*listen, middleware.LoggerAndMetrics(http.DefaultServeMux))
+	err := http.ListenAndServe(*listen, middleware.LoggerAndMetrics(http.DefaultServeMux, *trustedProxyCIDR, *insecureTrustProxy))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed serving app")
 	}
