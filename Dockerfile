@@ -12,9 +12,11 @@ COPY ./ ./
 RUN CGO_ENABLED=0 go build -installsuffix 'static' -o /example_api /src/cmd/example_api
 
 ## Final container
-FROM gcr.io/distroless/static AS final
+FROM gcr.io/distroless/static:nonroot AS final
 
 COPY --from=builder /example_api /
+
+USER nonroot
 
 EXPOSE 8000
 
