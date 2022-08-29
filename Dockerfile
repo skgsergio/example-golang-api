@@ -1,7 +1,7 @@
 ARG GO_VERSION=1.19
 
 ## Build container
-FROM docker.io/golang:${GO_VERSION} AS builder
+FROM docker.io/golang:${GO_VERSION}-alpine AS builder
 
 WORKDIR /src
 
@@ -16,8 +16,7 @@ FROM gcr.io/distroless/static:nonroot AS final
 
 COPY --from=builder /example_api /
 
-USER nonroot
-
 EXPOSE 8000
+USER nonroot:nonroot
 
 ENTRYPOINT ["/example_api"]
